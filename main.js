@@ -113,18 +113,9 @@ healthcheck(callback) {
       * If an optional IAP callback function was passed to
       * healthcheck(), execute it passing the error seen as an argument
       * for the callback's errorMessage parameter.
-      */
-        console.error('Error present.');
-        callback.error = error;
+      */        
         this.emitOffline();
-        log.error(this.id + " is down.");
-        } else if (!validResponseRegex.test(result.statusCode)) {
-            console.error('Bad response code.');
-            callback.data = result.responseData;       
-        } else if (this.isHibernating(result)) {
-            callback.error = 'Service Now instance is hibernating';
-            console.error(callback.error);
-
+        (result, error) => callback(result, error);        
    } else {
      /**
       * Write this block.
@@ -135,12 +126,10 @@ healthcheck(callback) {
       * healthcheck(), execute it passing this function's result
       * parameter as an argument for the callback function's
       * responseData parameter.
-      */
-      callback.data = response;
+      */      
       this.emitOnline();
-      log.debug(this.id + " is fine");
-   }
-   return callback(callback.data, callback.error);
+      (result, error) => callback(result, error);  
+   }   
  });
 }
   /**
@@ -189,15 +178,35 @@ healthcheck(callback) {
    * @param {ServiceNowAdapter~requestCallback} callback - The callback that
    *   handles the response.
    */
-  getRecord(callback) {
+   getRecord(callback) {
     /**
      * Write the body for this function.
      * The function is a wrapper for this.connector's get() method.
      * Note how the object was instantiated in the constructor().
      * get() takes a callback function.
      */
-     this.get(callback);
-  }
+      this.connector.get((data, error) => {
+        if (error) {
+          callback(data, error);
+        } else {
+            if (data.hasOwnProperty('body')) {
+              var body_array = (JSON.parse(data.body));
+              var num_results = body_array.result.length;
+              var changeTicket = [];
+
+              for(var i = 0; i < num_results; i += 1) {
+                var result_array = (JSON.parse(data.body).result);
+                changeTicket.push({"change_ticket_number" : result_array[i].number, "active" : result_array[i].active,
+                 "priority" : result_array[i].priority, "description" : result_array[i].description, 
+                 "work_start" : result_array[i].work_start, "work_end" : result_array[i].work_end,
+                 "change_ticket_key" : result_array[i].sys_id});
+              }
+            callback(changeTicket, error);
+            }
+          }
+      });
+    }
+
 
   /**
    * @memberof ServiceNowAdapter
@@ -208,15 +217,31 @@ healthcheck(callback) {
    * @param {ServiceNowAdapter~requestCallback} callback - The callback that
    *   handles the response.
    */
-  postRecord(callback) {
+    postRecord(callback) {
     /**
      * Write the body for this function.
      * The function is a wrapper for this.connector's post() method.
      * Note how the object was instantiated in the constructor().
      * post() takes a callback function.
      */
-     this.post(callback);
-  }
+      this.connector.post((data, error) => {
+          if (error) {
+            //console.error(`\nError returned from POST request:\n${JSON.stringify(error)}`);
+            callback(data, error);
+          } else {
+            if (data.hasOwnProperty('body')) {
+              var changeTicket = {};
+              var result_array = (JSON.parse(data.body).result);
+              changeTicket = ({"change_ticket_number" : result_array.number, "active" : result_array.active, 
+              "priority" : result_array.priority, "description" : result_array.description, 
+              "work_start" : result_array.work_start, "work_end" : result_array.work_end,
+              "change_ticket_key" : result_array.sys_id});
+              callback(changeTicket, error);
+            }
+           }
+        });
+    }
+
 }
 
 module.exports = ServiceNowAdapter;
